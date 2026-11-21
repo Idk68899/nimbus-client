@@ -18,44 +18,47 @@ import java.util.Comparator;
 import java.util.List;
 
 public class KillAura extends Module {
-    // targeting
-    private final NumberSetting range = add(new NumberSetting("Range", 3.0, 1.0, 6.0, 0.1));
-    private final BoolSetting throughWalls = add(new BoolSetting("Through walls", false));
-    private final BoolSetting players = add(new BoolSetting("Players", true));
-    private final BoolSetting hostile = add(new BoolSetting("Hostile mobs", false));
-    private final BoolSetting passive = add(new BoolSetting("Passive mobs", false));
-    private final BoolSetting invisible = add(new BoolSetting("Invisible", true));
-    private final BoolSetting ignoreBabies = add(new BoolSetting("Ignore babies", true));
-    private final ModeSetting priority = add(new ModeSetting("Priority", "Distance", "Distance", "Health", "Angle"));
-    private final NumberSetting fov = add(new NumberSetting("FOV", 360, 30, 360, 10));
-    private final ModeSetting mode = add(new ModeSetting("Mode", "Single", "Single", "Switch"));
-    private final NumberSetting maxTargets = add(new NumberSetting("Max targets", 3, 2, 6, 1));
+    private final NumberSetting range = add("Targeting", new NumberSetting("Range", 3.0, 1.0, 6.0, 0.1));
+    private final BoolSetting throughWalls = add("Targeting", new BoolSetting("Through walls", false));
+    private final BoolSetting players = add("Targeting", new BoolSetting("Players", true));
+    private final BoolSetting hostile = add("Targeting", new BoolSetting("Hostile mobs", false));
+    private final BoolSetting passive = add("Targeting", new BoolSetting("Passive mobs", false));
+    private final BoolSetting invisible = add("Targeting", new BoolSetting("Invisible", true));
+    private final BoolSetting ignoreBabies = add("Targeting", new BoolSetting("Ignore babies", true));
+    private final ModeSetting priority = add("Targeting", new ModeSetting("Priority", "Distance", "Distance", "Health", "Angle"));
+    private final NumberSetting fov = add("Targeting", new NumberSetting("FOV", 360, 30, 360, 10));
+    private final ModeSetting mode = add("Targeting", new ModeSetting("Mode", "Single", "Single", "Switch"));
+    private final NumberSetting maxTargets = add("Targeting", new NumberSetting("Max targets", 3, 2, 6, 1), () -> mode.get().equals("Switch"));
 
-    // attack
-    private final ModeSetting timing = add(new ModeSetting("Timing", "Cooldown", "Cooldown", "CPS"));
-    private final NumberSetting cooldown = add(new NumberSetting("Cooldown", 0.95, 0.5, 1.0, 0.05));
-    private final NumberSetting minCps = add(new NumberSetting("Min CPS", 8, 1, 20, 1));
-    private final NumberSetting maxCps = add(new NumberSetting("Max CPS", 12, 1, 20, 1));
-    private final NumberSetting jitter = add(new NumberSetting("Delay jitter", 2, 0, 6, 1));
-    private final NumberSetting hurtTime = add(new NumberSetting("Max hurt time", 10, 0, 10, 1));
-    private final BoolSetting onlyWeapon = add(new BoolSetting("Only weapon", false));
-    private final BoolSetting autoWeapon = add(new BoolSetting("Auto weapon", false));
-    private final BoolSetting pauseEating = add(new BoolSetting("Pause when eating", true));
+    private final ModeSetting timing = add("Timing", new ModeSetting("Timing", "Cooldown", "Cooldown", "CPS"));
+    private final NumberSetting cooldown = add("Timing", new NumberSetting("Cooldown", 0.95, 0.5, 1.0, 0.05), () -> timing.get().equals("Cooldown"));
+    private final NumberSetting jitter = add("Timing", new NumberSetting("Delay jitter", 1, 0, 6, 1), () -> timing.get().equals("Cooldown"));
+    private final NumberSetting minCps = add("Timing", new NumberSetting("Min CPS", 8, 1, 20, 1), () -> timing.get().equals("CPS"));
+    private final NumberSetting maxCps = add("Timing", new NumberSetting("Max CPS", 12, 1, 20, 1), () -> timing.get().equals("CPS"));
+    private final NumberSetting hurtTime = add("Timing", new NumberSetting("Max hurt time", 10, 0, 10, 1));
+    private final BoolSetting critOnly = add("Timing", new BoolSetting("Crits only (falling)", false));
+    private final BoolSetting pauseCrystals = add("Timing", new BoolSetting("Pause for crystals", true));
+    private final BoolSetting pauseUsing = add("Timing", new BoolSetting("Pause when using item", true));
 
-    // rotation
-    private final ModeSetting rotation = add(new ModeSetting("Rotation", "Smooth", "Smooth", "Instant", "None"));
-    private final ModeSetting aim = add(new ModeSetting("Aim point", "Chest", "Eyes", "Chest", "Feet"));
-    private final NumberSetting aimSpeed = add(new NumberSetting("Aim speed", 45, 5, 180, 5));
-    private final NumberSetting maxAngle = add(new NumberSetting("Attack angle", 25, 5, 180, 5));
+    private final BoolSetting onlyWeapon = add("Weapon", new BoolSetting("Only weapon", false));
+    private final BoolSetting autoWeapon = add("Weapon", new BoolSetting("Auto weapon", false));
+    private final BoolSetting breakShields = add("Weapon", new BoolSetting("Axe vs shields", true));
+
+    private final ModeSetting rotation = add("Rotation", new ModeSetting("Rotation", "Smooth", "Smooth", "Instant", "None"));
+    private final ModeSetting aim = add("Rotation", new ModeSetting("Aim point", "Chest", "Eyes", "Chest", "Feet"));
+    private final NumberSetting aimSpeed = add("Rotation", new NumberSetting("Max speed", 40, 5, 180, 5), () -> rotation.get().equals("Smooth"));
+    private final NumberSetting smoothing = add("Rotation", new NumberSetting("Smoothing", 0.35, 0.05, 1.0, 0.05), () -> rotation.get().equals("Smooth"));
+    private final NumberSetting noise = add("Rotation", new NumberSetting("Noise", 0.1, 0.0, 1.0, 0.05), () -> rotation.get().equals("Smooth"));
+    private final ModeSetting gate = add("Rotation", new ModeSetting("Attack gate", "Raycast", "Raycast", "Angle", "None"));
+    private final NumberSetting gateExpand = add("Rotation", new NumberSetting("Hitbox expand", 0.1, 0.0, 0.5, 0.05), () -> gate.get().equals("Raycast"));
+    private final NumberSetting maxAngle = add("Rotation", new NumberSetting("Max angle", 25, 5, 180, 5), () -> gate.get().equals("Angle"));
 
     private int wait, switchIdx;
     private double cpsAcc;
 
-    public KillAura() { super("KillAura", "Combat", GLFW.GLFW_KEY_R); }
+    public KillAura() { super("KillAura", "Combat", GLFW.GLFW_KEY_R, "Attacks entities around you. Rotates smoothly; attacks once your crosshair is on target."); }
 
-    private static boolean isWeapon(ItemStack s) {
-        return s.is(ItemTags.SWORDS) || s.is(ItemTags.AXES); // CHECK: tag names
-    }
+    private static boolean isWeapon(ItemStack s) { return s.is(ItemTags.SWORDS) || s.is(ItemTags.AXES); } // CHECK tags
 
     private Vec3 aim(LivingEntity e) {
         return switch (aim.get()) {
@@ -73,9 +76,7 @@ public class KillAura extends Module {
             if (!hostile.get()) return false;
         } else if (le instanceof Animal) {
             if (!passive.get()) return false;
-        } else {
-            return false;
-        }
+        } else return false;
         if (!invisible.get() && le.isInvisible()) return false;
         if (ignoreBabies.get() && le.isBaby()) return false;
         if (p.distanceTo(le) > range.get()) return false;
@@ -95,7 +96,8 @@ public class KillAura extends Module {
     public void onTick() {
         var p = mc.player;
         if (p == null || mc.level == null || mc.gameMode == null || mc.gui.screen() != null) return; // CHECK
-        if (pauseEating.get() && p.isUsingItem()) return;
+        if (Sync.lockedByOther(this) || (pauseCrystals.get() && Sync.crystalActive())) return;
+        if (pauseUsing.get() && p.isUsingItem()) return;
 
         List<LivingEntity> list = new ArrayList<>();
         for (Entity e : mc.level.entitiesForRendering()) { // CHECK
@@ -107,22 +109,32 @@ public class KillAura extends Module {
         LivingEntity t = mode.get().equals("Switch")
                 ? list.get(switchIdx % Math.min(list.size(), maxTargets.get().intValue()))
                 : list.get(0);
+        Sync.setTarget(t);
 
-        if (!isWeapon(p.getMainHandItem())) {
-            if (autoWeapon.get()) {
-                int s = Inv.findHotbar(KillAura::isWeapon);
-                if (s >= 0) Inv.select(s);
-            }
-            if (onlyWeapon.get() && !isWeapon(p.getMainHandItem())) return;
+        if (breakShields.get() && t instanceof Player pl && pl.isBlocking()) {
+            int axe = Inv.findHotbar(s -> s.is(ItemTags.AXES));
+            if (axe >= 0 && axe != Inv.selected()) Inv.select(axe);
+        } else if (autoWeapon.get() && !isWeapon(p.getMainHandItem())) {
+            int s = Inv.findHotbar(KillAura::isWeapon);
+            if (s >= 0) Inv.select(s);
         }
+        if (onlyWeapon.get() && !isWeapon(p.getMainHandItem())) return;
 
         Vec3 at = aim(t);
-        boolean rotate = !rotation.get().equals("None");
-        if (rotate) {
-            Rot.smooth(at, rotation.get().equals("Instant") ? 360f : aimSpeed.get().floatValue());
-            if (Rot.yawDiff(at) > maxAngle.get()) return;
+        switch (rotation.get()) {
+            case "Smooth" -> Rot.smooth(at, aimSpeed.get().floatValue(), smoothing.get().floatValue(), noise.get().floatValue());
+            case "Instant" -> Rot.smooth(at, 360f, 1f, 0f);
+            default -> {}
         }
+
+        switch (gate.get()) {
+            case "Raycast" -> { if (!Rot.looking(t, gateExpand.get(), range.get() + 1)) return; }
+            case "Angle" -> { if (Rot.yawDiff(at) > maxAngle.get()) return; }
+            default -> {}
+        }
+
         if (t.hurtTime > hurtTime.get()) return;
+        if (critOnly.get() && !(p.fallDistance > 0 && !p.onGround() && !p.isInWater())) return; // CHECK fallDistance
 
         boolean cps = timing.get().equals("CPS");
         if (cps) {
