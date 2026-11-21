@@ -2,6 +2,7 @@ package dev.nimbus.util;
 
 import net.minecraft.client.Minecraft;
 import net.minecraft.util.Mth;
+import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.phys.Vec3;
 
 public final class Rot {
@@ -19,21 +20,41 @@ public final class Rot {
         return Math.abs(Mth.wrapDegrees(to(t)[0] - mc.player.getYRot()));
     }
 
-    /** Turns toward t by at most maxStep degrees this tick, with jitter and mouse-GCD snapping. */
-    public static void smooth(Vec3 t, float maxStep) {
+    public static double smooth(Vec3 t, float maxStep) { return smooth(t, maxStep, 0.5f, 0.15f); }
+
+    /**
+     * Eased turn: each tick covers `ease` of the remaining angle, capped at maxStep, snapped to the
+     * mouse grid. Returns the remaining angle in degrees.
+     */
+    public static double smooth(Vec3 t, float maxStep, float ease, float noise) {
         var p = mc.player;
         float[] r = to(t);
+        double dy = Mth.wrapDegrees(r[0] - p.getYRot());
+        double dp = r[1] - p.getXRot();
         double s = mc.options.sensitivity().get() * 0.6 + 0.2; // CHECK: sensitivity()
         double gcd = s * s * s * 8.0 * 0.15;
 
-        double dy = Mth.wrapDegrees(r[0] - p.getYRot()) + Rand.between(-0.25, 0.25);
-        double dp = (r[1] - p.getXRot()) + Rand.between(-0.25, 0.25);
-        dy = Mth.clamp(dy, -maxStep, maxStep);
-        dp = Mth.clamp(dp, -maxStep, maxStep);
-        dy = Math.round(dy / gcd) * gcd;
-        dp = Math.round(dp / gcd) * gcd;
+        double sy = step(dy, maxStep, ease, noise, gcd);
+        double sp = step(dp, maxStep, ease, noise, gcd);
+        p.setYRot((float) (p.getYRot() + sy));
+        p.setXRot(Mth.clamp((float) (p.getXRot() + sp), -90f, 90f));
+        return Math.hypot(Mth.wrapDegrees(r[0] - p.getYRot()), r[1] - p.getXRot());
+    }
 
-        p.setYRot((float) (p.getYRot() + dy));
-        p.setXRot(Mth.clamp((float) (p.getXRot() + dp), -90f, 90f));
+    private static double step(double d, float max, float ease, float noise, double gcd) {
+        if (Math.abs(d) < gcd * 0.5) return 0;
+        double v = Mth.clamp(d * ease + Rand.between(-noise, noise), -max, max);
+        if (Math.abs(v) > Math.abs(d)) v = d;
+        v = Math.round(v / gcd) * gcd;
+        if (v == 0) v = Math.signum(d) * gcd;
+        return v;
+    }
+
+    /** True when the player's real look ray passes through the (expanded) hitbox. */
+    public static boolean looking(LivingEntity t, double expand, double reach) {
+        Vec3 eye = mc.player.getEyePosition();
+        Vec3 end = eye.add(mc.player.getLookAngle().scale(reach));
+        var box = t.getBoundingBox().inflate(expand);
+        return box.contains(eye) || box.clip(eye, end).isPresent();
     }
 }
