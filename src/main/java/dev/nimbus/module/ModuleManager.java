@@ -18,24 +18,43 @@ public final class ModuleManager {
     private final Set<Integer> down = new HashSet<>();
 
     public void init() {
+        // Combat
         modules.add(new KillAura());
-modules.add(new Reach());
-modules.add(new AimAssist());
-modules.add(new TriggerBot());
-modules.add(new AutoClicker());
-modules.add(new CrystalAura());
-modules.add(new AnchorAura());
-modules.add(new Velocity());
-modules.add(new AutoTotem());
-modules.add(new AutoPot());
-modules.add(new AutoGapple());
-modules.add(new Sprint());
-modules.add(new Speed());
-modules.add(new Flight());
-modules.add(new Scaffold());
-modules.add(new Fullbright());
-modules.add(new Esp());
-load();
+        modules.add(new Reach());
+        modules.add(new Hitbox());
+        modules.add(new AimAssist());
+        modules.add(new TriggerBot());
+        modules.add(new AutoClicker());
+        modules.add(new AutoWeapon());
+        modules.add(new BowSpam());
+        modules.add(new CrystalAura());
+        modules.add(new AnchorAura());
+        modules.add(new Surround());
+        modules.add(new Velocity());
+        // Player
+        modules.add(new AutoTotem());
+        modules.add(new AutoPot());
+        modules.add(new AutoGapple());
+        modules.add(new AutoArmor());
+        modules.add(new AutoEat());
+        modules.add(new AutoTool());
+        modules.add(new AutoRespawn());
+        modules.add(new FastPlace());
+        modules.add(new AntiAfk());
+        // Movement
+        modules.add(new Sprint());
+        modules.add(new Speed());
+        modules.add(new Bhop());
+        modules.add(new Flight());
+        modules.add(new Step());
+        modules.add(new Scaffold());
+        modules.add(new AutoWalk());
+        // Render
+        modules.add(new Fullbright());
+        modules.add(new Esp());
+        modules.add(new Zoom());
+        modules.add(new HudModule());
+        load();
     }
 
     public List<Module> all() { return modules; }
