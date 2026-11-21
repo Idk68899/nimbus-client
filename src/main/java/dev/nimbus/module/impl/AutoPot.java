@@ -20,13 +20,16 @@ public class AutoPot extends Module {
     private final BoolSetting regen = add("Buffs", new BoolSetting("Regeneration", false));
     private final BoolSetting fireRes = add("Buffs", new BoolSetting("Fire resistance", false));
     private final BoolSetting combatOnly = add("Buffs", new BoolSetting("Buffs only in combat", true));
+    private final BoolSetting refill = add("Inventory", new BoolSetting("Refill from inventory", true));
+    private final BoolSetting keepReady = add("Inventory", new BoolSetting("Keep a healing pot ready", true), () -> refill.get());
     private final NumberSetting cooldown = add("Timing", new NumberSetting("Cooldown ticks", 8, 2, 40, 1));
     private final BoolSetting lookDown = add("Timing", new BoolSetting("Throw at feet", true));
 
     private int stage, wait, prevSlot;
     private float prevPitch;
+    private boolean refilled;
 
-    public AutoPot() { super("AutoPot", "Player", -1, "Throws splash potions at your feet: healing when low, buffs in combat."); }
+    public AutoPot() { super("AutoPot", "Player", -1, "Throws splash potions at your feet: healing when low, buffs in combat. Pulls pots from your inventory."); }
 
     private static boolean has(ItemStack s, Holder<MobEffect> eff) {
         if (!s.is(Items.SPLASH_POTION)) return false;
@@ -37,20 +40,26 @@ public class AutoPot extends Module {
         return false;
     }
 
+    public static boolean isHealing(ItemStack s) { return has(s, MobEffects.INSTANT_HEALTH); } // CHECK: may be HEAL
+
     private int slotFor(Holder<MobEffect> eff) { return Inv.findHotbar(s -> has(s, eff)); }
+
+    private int slotOrRefill(Holder<MobEffect> eff) {
+        int s = slotFor(eff);
+        if (s >= 0) return s;
+        if (refill.get() && Inv.refill(st -> has(st, eff))) refilled = true;
+        return -1;
+    }
 
     /** Slot of the potion to throw right now, or -1. */
     private int pick() {
         var p = mc.player;
-        if (Dmg.hp(p) <= health.get()) {
-            int s = slotFor(MobEffects.INSTANT_HEALTH); // CHECK: may be HEAL
-            if (s >= 0) return s;
-        }
+        if (Dmg.hp(p) <= health.get()) return slotOrRefill(MobEffects.INSTANT_HEALTH);
         if (combatOnly.get() && Sync.target() == null) return -1;
-        if (regen.get() && !p.hasEffect(MobEffects.REGENERATION)) { int s = slotFor(MobEffects.REGENERATION); if (s >= 0) return s; }
-        if (speed.get() && !p.hasEffect(MobEffects.SPEED)) { int s = slotFor(MobEffects.SPEED); if (s >= 0) return s; }
-        if (strength.get() && !p.hasEffect(MobEffects.STRENGTH)) { int s = slotFor(MobEffects.STRENGTH); if (s >= 0) return s; }
-        if (fireRes.get() && !p.hasEffect(MobEffects.FIRE_RESISTANCE)) { int s = slotFor(MobEffects.FIRE_RESISTANCE); if (s >= 0) return s; }
+        if (regen.get() && !p.hasEffect(MobEffects.REGENERATION)) { int s = slotOrRefill(MobEffects.REGENERATION); if (s >= 0 || refilled) return s; }
+        if (speed.get() && !p.hasEffect(MobEffects.SPEED)) { int s = slotOrRefill(MobEffects.SPEED); if (s >= 0 || refilled) return s; }
+        if (strength.get() && !p.hasEffect(MobEffects.STRENGTH)) { int s = slotOrRefill(MobEffects.STRENGTH); if (s >= 0 || refilled) return s; }
+        if (fireRes.get() && !p.hasEffect(MobEffects.FIRE_RESISTANCE)) { int s = slotOrRefill(MobEffects.FIRE_RESISTANCE); if (s >= 0 || refilled) return s; }
         return -1;
     }
 
@@ -63,8 +72,15 @@ public class AutoPot extends Module {
         switch (stage) {
             case 0 -> {
                 if (Sync.lockedByOther(this)) return;
+                if (keepReady.get() && refill.get() && slotFor(MobEffects.INSTANT_HEALTH) < 0 && Inv.refill(AutoPot::isHealing)) {
+                    wait = 2;
+                    return;
+                }
+                refilled = false;
                 int slot = pick();
+                if (refilled) { refilled = false; wait = 2; return; }
                 if (slot < 0) return;
+
                 Sync.lock(this, 8);
                 prevSlot = Inv.selected();
                 prevPitch = p.getXRot();
