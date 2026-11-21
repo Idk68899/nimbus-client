@@ -11,7 +11,7 @@ import java.util.*;
 import java.util.function.BiConsumer;
 
 public class ClickGuiScreen extends Screen {
-    private static final String[] CATS = { "Combat", "Movement", "Render" };
+    private static final String[] CATS = { "Combat", "Player", "Movement", "Render" };
     private static final int W = 112, H = 14;
 
     private record Hit(int x, int y, int w, int h, BiConsumer<Double, Integer> action) {}
