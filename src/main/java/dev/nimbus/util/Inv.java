@@ -37,4 +37,20 @@ public final class Inv {
     public static void quickMove(int menuSlot) {
         mc.gameMode.handleContainerInput(mc.player.inventoryMenu.containerId, menuSlot, 0, ContainerInput.QUICK_MOVE, mc.player);
     }
+
+    /**
+     * If the hotbar has no matching item but the main inventory does, moves one stack into an empty
+     * hotbar slot. Returns true if a move was made (the item arrives next tick).
+     */
+    public static boolean refill(Predicate<ItemStack> f) {
+        if (findHotbar(f) >= 0) return false;
+        int inv = -1;
+        for (int i = 9; i < 36; i++) if (f.test(mc.player.getInventory().getItem(i))) { inv = i; break; }
+        if (inv < 0) return false;
+        int empty = -1;
+        for (int i = 0; i < 9; i++) if (mc.player.getInventory().getItem(i).isEmpty()) { empty = i; break; }
+        if (empty < 0) return false;
+        swap(menuSlot(inv), empty);
+        return true;
+    }
 }
