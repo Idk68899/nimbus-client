@@ -20,8 +20,8 @@ public class Teams extends Module {
     private static final EquipmentSlot[] ARMOR = { EquipmentSlot.HEAD, EquipmentSlot.CHEST, EquipmentSlot.LEGS, EquipmentSlot.FEET };
 
     private final BoolSetting scoreboard = add("Detection", new BoolSetting("Scoreboard team", true));
-    private final BoolSetting nameColor = add("Detection", new BoolSetting("Name color", true));
-    private final BoolSetting armorColor = add("Detection", new BoolSetting("Dyed armor color", true));
+    private final BoolSetting nameColor = add("Detection", new BoolSetting("Name color (off if everyone shares a rank color)", false));
+    private final BoolSetting armorColor = add("Detection", new BoolSetting("Dyed armor color", false));
     private final BoolSetting friends = add("Friends", new BoolSetting("Use friends list", true));
     private final BoolSetting middleClick = add("Friends", new BoolSetting("Middle-click to add/remove", true), () -> friends.get());
     private final StringSetting list = add("Friends", new StringSetting("List", ""));
