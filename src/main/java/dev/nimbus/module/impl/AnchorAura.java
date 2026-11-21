@@ -1,95 +1,142 @@
 package dev.nimbus.module.impl;
 
 import dev.nimbus.module.Module;
-import dev.nimbus.setting.NumberSetting;
+import dev.nimbus.module.ModuleManager;
+import dev.nimbus.setting.*;
 import dev.nimbus.util.*;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.item.Items;
+import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.RespawnAnchorBlock;
 import net.minecraft.world.phys.Vec3;
 import org.lwjgl.glfw.GLFW;
 
 public class AnchorAura extends Module {
-    private final NumberSetting targetRange = add(new NumberSetting("Target range", 8, 3, 14, 1));
-    private final NumberSetting range = add(new NumberSetting("Range", 4.5, 1, 6, 0.5));
-    private final NumberSetting charges = add(new NumberSetting("Charges", 1, 1, 4, 1));
-    private final NumberSetting minDmg = add(new NumberSetting("Min damage", 4, 0, 20, 0.5));
-    private final NumberSetting maxSelf = add(new NumberSetting("Max self damage", 6, 0, 20, 0.5));
-    private final NumberSetting delay = add(new NumberSetting("Delay ticks", 2, 0, 10, 1));
+    private final NumberSetting targetRange = add("Target", new NumberSetting("Target range", 8, 3, 14, 1));
+    private final BoolSetting shareTarget = add("Target", new BoolSetting("Use KillAura target", true));
+
+    private final NumberSetting range = add("Anchor", new NumberSetting("Range", 4.5, 1, 6, 0.5));
+    private final NumberSetting charges = add("Anchor", new NumberSetting("Charges", 1, 1, 4, 1));
+    private final NumberSetting minDamage = add("Anchor", new NumberSetting("Min damage", 5, 0, 20, 0.5));
+    private final NumberSetting maxSelf = add("Anchor", new NumberSetting("Max self damage", 6, 0, 20, 0.5));
+    private final BoolSetting antiSuicide = add("Anchor", new BoolSetting("Anti suicide", true));
+    private final NumberSetting delay = add("Anchor", new NumberSetting("Delay ticks", 1, 0, 10, 1));
+
+    private final BoolSetting popFollow = add("Pop follow-up", new BoolSetting("Follow up pops", true));
+    private final NumberSetting popMin = add("Pop follow-up", new NumberSetting("Pop min damage", 2, 0, 20, 0.5), () -> popFollow.get());
+
+    private final BoolSetting requireCover = add("Safety", new BoolSetting("Require SafeAnchor cover", false));
+    private final BoolSetting requireTotem = add("Safety", new BoolSetting("Require totem", true));
+
     private int wait;
 
-    public AnchorAura() { super("AnchorAura", "Combat", GLFW.GLFW_KEY_Z); }
+    public AnchorAura() { super("AnchorAura", "Combat", GLFW.GLFW_KEY_Z, "Places, charges and detonates respawn anchors (outside the Nether)."); }
+
+    private boolean safe(double self) {
+        return self <= maxSelf.get() && (!antiSuicide.get() || self < Dmg.hp(mc.player) - 0.5);
+    }
+
+    private boolean hasSupport(BlockPos pos) {
+        for (var d : net.minecraft.core.Direction.values()) {
+            var st = mc.level.getBlockState(pos.relative(d));
+            if (!st.isAir() && st.getFluidState().isEmpty()) return true;
+        }
+        return false;
+    }
+
+    private void useWith(BlockPos anchor, int slot) {
+        int prev = Inv.selected();
+        Inv.select(slot);
+        Place.use(anchor, InteractionHand.MAIN_HAND);
+        Inv.select(prev);
+    }
 
     @Override
     public void onTick() {
         var p = mc.player;
-        if (p == null || mc.level == null || mc.gameMode == null) return;
+        if (p == null || mc.level == null || mc.gameMode == null || mc.gui.screen() != null) return; // CHECK
+        if (mc.level.dimension() == Level.NETHER) return;
         if (wait > 0) { wait--; return; }
+        if (Sync.lockedByOther(this)) return;
+        if (requireTotem.get() && !Sync.hasTotem()) return;
 
-        LivingEntity t = Target.find(targetRange.get(), true, "Distance", 360);
+        LivingEntity t = shareTarget.get() && Sync.target() != null && p.distanceTo(Sync.target()) <= targetRange.get()
+                ? Sync.target() : Target.find(targetRange.get(), true, "Distance", 360);
         if (t == null) return;
+        Sync.setTarget(t);
 
-        // existing anchor near the target
+        boolean pop = popFollow.get() && Sync.recentPop(t, 20);
+        double minD = pop ? Math.min(popMin.get(), minDamage.get()) : minDamage.get();
+
         BlockPos anchor = null;
+        double bestD = -1;
         int r = (int) Math.ceil(range.get());
         BlockPos o = p.blockPosition();
-        for (int dx = -r; dx <= r && anchor == null; dx++)
-            for (int dy = -r; dy <= r && anchor == null; dy++)
+        for (int dx = -r; dx <= r; dx++)
+            for (int dy = -r; dy <= r; dy++)
                 for (int dz = -r; dz <= r; dz++) {
                     BlockPos pos = o.offset(dx, dy, dz);
                     if (!mc.level.getBlockState(pos).is(Blocks.RESPAWN_ANCHOR)) continue;
                     Vec3 c = Vec3.atCenterOf(pos);
-                    if (p.getEyePosition().distanceTo(c) > range.get()) continue;
-                    if (c.distanceTo(t.position()) > 3.5) continue;
-                    anchor = pos;
-                    break;
+                    if (p.getEyePosition().distanceTo(c) > range.get() || c.distanceTo(t.position()) > 6) continue;
+                    double d = Dmg.explosion(c, t, 5);
+                    if (d > bestD) { bestD = d; anchor = pos; }
                 }
 
-        if (anchor == null) { placeAnchor(t); return; }
+        if (anchor == null) { placeAnchor(t, minD, r); return; }
 
-        Vec3 c = Vec3.atCenterOf(anchor);
         int charge = mc.level.getBlockState(anchor).getValue(RespawnAnchorBlock.CHARGE);
-
         if (charge < charges.get()) {
-            int slot = Inv.findHotbar(s -> s.is(Items.GLOWSTONE));
-            if (slot < 0) return;
-            Inv.select(slot);
-            Place.use(anchor, InteractionHand.MAIN_HAND);
-            wait = delay.get().intValue();
+            int gs = Inv.findHotbar(s -> s.is(Items.GLOWSTONE));
+            if (gs < 0) return;
+            useWith(anchor, gs);
+            Sync.markCrystal();
+            wait = pop ? 0 : delay.get().intValue();
             return;
         }
 
-        if (Dmg.estimate(c, t, 5) < minDmg.get() || Dmg.estimate(c, p, 5) > maxSelf.get()) return;
-        int slot = Inv.findHotbar(s -> !s.isEmpty() && !s.is(Items.GLOWSTONE) && !s.is(Items.RESPAWN_ANCHOR));
-        if (slot >= 0) Inv.select(slot);
-        Place.use(anchor, InteractionHand.MAIN_HAND);
-        wait = delay.get().intValue();
+        Vec3 c = Vec3.atCenterOf(anchor);
+        if (Dmg.explosion(c, t, 5) < minD || !safe(Dmg.explosion(c, p, 5))) return;
+        if (requireCover.get()) {
+            SafeAnchor sa = ModuleManager.INSTANCE.get(SafeAnchor.class);
+            if (sa == null || !sa.isEnabled() || !sa.covered()) return;
+        }
+        int blank = Inv.findHotbar(s -> s.isEmpty() || (!s.is(Items.GLOWSTONE) && !s.is(Items.RESPAWN_ANCHOR)));
+        if (blank < 0) return;
+        useWith(anchor, blank);
+        Sync.markCrystal();
+        wait = pop ? 0 : delay.get().intValue();
     }
 
-    private void placeAnchor(LivingEntity t) {
+    private void placeAnchor(LivingEntity t, double minD, int r) {
         var p = mc.player;
         int slot = Inv.findHotbar(s -> s.is(Items.RESPAWN_ANCHOR));
         if (slot < 0) return;
-
         BlockPos best = null;
-        double bestScore = -1e9;
+        double bestScore = Double.NEGATIVE_INFINITY;
         BlockPos tp = t.blockPosition();
-        for (int dx = -1; dx <= 1; dx++)
+        for (int dx = -2; dx <= 2; dx++)
             for (int dy = 0; dy <= 2; dy++)
-                for (int dz = -1; dz <= 1; dz++) {
+                for (int dz = -2; dz <= 2; dz++) {
                     BlockPos pos = tp.offset(dx, dy, dz);
-                    if (!mc.level.isEmptyBlock(pos)) continue;
+                    if (!mc.level.isEmptyBlock(pos) || !hasSupport(pos)) continue;
                     Vec3 c = Vec3.atCenterOf(pos);
                     if (p.getEyePosition().distanceTo(c) > range.get()) continue;
-                    double score = Dmg.estimate(c, t, 5) - Dmg.estimate(c, p, 5);
-                    if (Dmg.estimate(c, p, 5) > maxSelf.get()) continue;
-                    if (score > bestScore) { bestScore = score; best = pos; }
+                    double dt = Dmg.explosion(c, t, 5), ds = Dmg.explosion(c, p, 5);
+                    if (dt < minD || !safe(ds)) continue;
+                    if (dt - ds * 0.5 > bestScore) { bestScore = dt - ds * 0.5; best = pos; }
                 }
         if (best == null) return;
+        int prev = Inv.selected();
         Inv.select(slot);
-        if (Place.block(best, InteractionHand.MAIN_HAND)) wait = delay.get().intValue();
+        boolean ok = Place.block(best, InteractionHand.MAIN_HAND);
+        Inv.select(prev);
+        if (ok) wait = delay.get().intValue();
     }
+
+    @Override
+    public void onDisable() { wait = 0; }
 }
