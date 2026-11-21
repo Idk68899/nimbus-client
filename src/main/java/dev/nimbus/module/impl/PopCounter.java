@@ -24,7 +24,7 @@ public class PopCounter extends Module {
             int n = Sync.pops(pl);
             if (n > seen.getOrDefault(pl.getId(), 0)) {
                 seen.put(pl.getId(), n);
-                mc.player.displayClientMessage(Component.literal("[Nimbus] " + pl.getName().getString() + " popped (" + n + ")"), false);
+                mc.player.sendSystemMessage(Component.literal("[Nimbus] " + pl.getName().getString() + " popped (" + n + ")")); // CHECK
             }
         }
     }
