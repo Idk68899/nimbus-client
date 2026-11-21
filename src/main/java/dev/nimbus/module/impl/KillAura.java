@@ -1,19 +1,21 @@
 package dev.nimbus.module.impl;
 
 import dev.nimbus.module.Module;
-import dev.nimbus.setting.BoolSetting;
-import dev.nimbus.setting.NumberSetting;
+import dev.nimbus.setting.*;
+import dev.nimbus.util.*;
 import net.minecraft.world.InteractionHand;
-import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
-import net.minecraft.world.entity.player.Player;
-import net.minecraft.world.phys.Vec3;
 import org.lwjgl.glfw.GLFW;
 
 public class KillAura extends Module {
     private final NumberSetting range = add(new NumberSetting("Range", 3.0, 1.0, 6.0, 0.1));
+    private final NumberSetting fov = add(new NumberSetting("FOV", 360, 30, 360, 10));
+    private final NumberSetting speed = add(new NumberSetting("Aim speed", 45, 5, 180, 5));
+    private final NumberSetting jitter = add(new NumberSetting("Delay jitter", 2, 0, 6, 1));
+    private final ModeSetting sort = add(new ModeSetting("Sort", "Distance", "Distance", "Health", "Angle"));
     private final BoolSetting playersOnly = add(new BoolSetting("Players only", true));
     private final BoolSetting rotate = add(new BoolSetting("Rotate", true));
+    private int wait;
 
     public KillAura() { super("KillAura", "Combat", GLFW.GLFW_KEY_R); }
 
@@ -21,25 +23,18 @@ public class KillAura extends Module {
     public void onTick() {
         var p = mc.player;
         if (p == null || mc.level == null || mc.gameMode == null) return;
+        if (wait > 0) { wait--; return; }
         if (p.getAttackStrengthScale(0.5f) < 0.95f) return;
 
-        LivingEntity best = null;
-        double bestD = range.get() * range.get();
-        for (Entity e : mc.level.entitiesForRendering()) { // CHECK: entitiesForRendering()
-            if (!(e instanceof LivingEntity le) || le == p || !le.isAlive()) continue;
-            if (playersOnly.get() && !(e instanceof Player)) continue;
-            double d = p.distanceToSqr(e);
-            if (d <= bestD) { bestD = d; best = le; }
-        }
-        if (best == null) return;
+        LivingEntity t = Target.find(range.get(), playersOnly.get(), sort.get(), fov.get());
+        if (t == null) return;
 
         if (rotate.get()) {
-            Vec3 from = p.getEyePosition(), to = best.getEyePosition();
-            double dx = to.x - from.x, dy = to.y - from.y, dz = to.z - from.z;
-            p.setYRot((float) (Math.toDegrees(Math.atan2(dz, dx)) - 90.0));
-            p.setXRot((float) -Math.toDegrees(Math.atan2(dy, Math.sqrt(dx * dx + dz * dz))));
+            Rot.smooth(Target.aim(t), speed.get().floatValue());
+            if (Rot.yawDiff(Target.aim(t)) > 20) return;
         }
-        mc.gameMode.attack(p, best);
+        mc.gameMode.attack(p, t);
         p.swing(InteractionHand.MAIN_HAND);
+        wait = (int) Rand.between(0, jitter.get() + 1);
     }
 }
