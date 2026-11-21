@@ -9,11 +9,11 @@ import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.phys.EntityHitResult;
 
 public class TriggerBot extends Module {
-    private final BoolSetting playersOnly = add(new BoolSetting("Players only", true));
-    private final NumberSetting jitter = add(new NumberSetting("Delay jitter", 2, 0, 6, 1));
+    private final BoolSetting playersOnly = add("General", new BoolSetting("Players only", true));
+    private final NumberSetting jitter = add("General", new NumberSetting("Delay jitter", 2, 0, 6, 1));
     private int wait;
 
-    public TriggerBot() { super("TriggerBot", "Combat", -1); }
+    public TriggerBot() { super("TriggerBot", "Combat", -1, "Attacks whatever your crosshair is on once your cooldown is ready."); }
 
     @Override
     public void onTick() {
@@ -24,6 +24,7 @@ public class TriggerBot extends Module {
         if (!(mc.hitResult instanceof EntityHitResult hit)) return;
         if (!(hit.getEntity() instanceof LivingEntity le) || !le.isAlive()) return;
         if (playersOnly.get() && !(le instanceof Player)) return;
+        if (Teams.ignored(le)) return;
 
         mc.gameMode.attack(p, le);
         p.swing(InteractionHand.MAIN_HAND);
