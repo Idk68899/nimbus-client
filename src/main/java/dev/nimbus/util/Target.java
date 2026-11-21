@@ -1,5 +1,6 @@
 package dev.nimbus.util;
 
+import dev.nimbus.module.impl.Teams;
 import net.minecraft.client.Minecraft;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
@@ -13,7 +14,7 @@ public final class Target {
         return e.position().add(0, e.getBbHeight() * 0.6, 0);
     }
 
-    /** sort: "Distance", "Health" or "Angle". fov 360 disables the angle filter. */
+    /** sort: "Distance", "Health" or "Angle". fov 360 disables the angle filter. Skips teammates and friends. */
     public static LivingEntity find(double range, boolean playersOnly, String sort, double fov) {
         var p = mc.player;
         LivingEntity best = null;
@@ -21,6 +22,7 @@ public final class Target {
         for (Entity e : mc.level.entitiesForRendering()) { // CHECK
             if (!(e instanceof LivingEntity le) || le == p || !le.isAlive()) continue;
             if (playersOnly && !(e instanceof Player)) continue;
+            if (Teams.ignored(le)) continue;
             if (p.distanceTo(e) > range) continue;
             Vec3 a = aim(le);
             if (fov < 360 && Rot.yawDiff(a) > fov / 2.0) continue;
