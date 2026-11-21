@@ -28,4 +28,9 @@ public final class Inv {
         // CHECK: 26.2 renamed ClickType -> ContainerInput, handleInventoryMouseClick -> handleContainerInput
         mc.gameMode.handleContainerInput(mc.player.inventoryMenu.containerId, menuSlot, 40, ContainerInput.SWAP, mc.player);
     }
+
+    /** Shift-click a menu slot (equips armor into an empty armor slot). */
+    public static void quickMove(int menuSlot) {
+        mc.gameMode.handleContainerInput(mc.player.inventoryMenu.containerId, menuSlot, 0, ContainerInput.QUICK_MOVE, mc.player);
+    }
 }
