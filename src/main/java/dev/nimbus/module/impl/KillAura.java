@@ -70,6 +70,7 @@ public class KillAura extends Module {
 
     private boolean valid(Player p, LivingEntity le) {
         if (le == p || !le.isAlive()) return false;
+        if (Teams.ignored(le)) return false;
         if (le instanceof Player pl) {
             if (!players.get() || pl.isCreative() || pl.isSpectator()) return false;
         } else if (le instanceof Enemy) {
