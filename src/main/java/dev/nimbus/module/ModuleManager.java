@@ -3,6 +3,7 @@ package dev.nimbus.module;
 import com.google.gson.*;
 import dev.nimbus.module.impl.*;
 import dev.nimbus.setting.Setting;
+import dev.nimbus.util.Sync;
 import net.fabricmc.loader.api.FabricLoader;
 import net.minecraft.client.Minecraft;
 import org.lwjgl.glfw.GLFW;
@@ -30,6 +31,8 @@ public final class ModuleManager {
         modules.add(new CrystalAura());
         modules.add(new AnchorAura());
         modules.add(new Surround());
+        modules.add(new SafeAnchor());
+        modules.add(new AutoWeb());
         modules.add(new Velocity());
         // Player
         modules.add(new AutoTotem());
@@ -41,12 +44,14 @@ public final class ModuleManager {
         modules.add(new AutoRespawn());
         modules.add(new FastPlace());
         modules.add(new AntiAfk());
+        modules.add(new PopCounter());
         // Movement
         modules.add(new Sprint());
         modules.add(new Speed());
         modules.add(new Bhop());
         modules.add(new Flight());
         modules.add(new Step());
+        modules.add(new Spider());
         modules.add(new Scaffold());
         modules.add(new AutoWalk());
         // Render
@@ -54,7 +59,12 @@ public final class ModuleManager {
         modules.add(new Esp());
         modules.add(new Zoom());
         modules.add(new HudModule());
-        load();
+        modules.add(new Radar());
+        modules.add(new TargetHud());
+        modules.add(new ArmorHud());
+        modules.add(new PotionHud());
+        modules.add(new Keystrokes());
+        loadFrom(FILE, false);
     }
 
     public List<Module> all() { return modules; }
@@ -71,6 +81,7 @@ public final class ModuleManager {
 
     public void tick(Minecraft mc) {
         if (mc.player == null) return;
+        Sync.tick++;
         long h = GLFW.glfwGetCurrentContext();
         boolean noScreen = mc.gui.screen() == null; // CHECK: gui.screen()
         for (Module m : modules) {
@@ -83,32 +94,37 @@ public final class ModuleManager {
         }
     }
 
-    public void save() {
+    public void save() { saveTo(FILE, false); }
+
+    public void saveTo(Path file, boolean withState) {
         try {
             JsonObject root = new JsonObject();
             for (Module m : modules) {
                 JsonObject o = new JsonObject();
                 o.addProperty("key", m.key);
+                if (withState) o.addProperty("enabled", m.isEnabled());
                 JsonObject s = new JsonObject();
                 for (Setting<?> st : m.settings) s.add(st.name, st.save());
                 o.add("settings", s);
                 root.add(m.name, o);
             }
-            Files.writeString(FILE, new GsonBuilder().setPrettyPrinting().create().toJson(root));
+            Files.writeString(file, new GsonBuilder().setPrettyPrinting().create().toJson(root));
         } catch (Exception ignored) {}
     }
 
-    private void load() {
-        if (!Files.exists(FILE)) return;
+    public void loadFrom(Path file, boolean withState) {
+        if (!Files.exists(file)) return;
         try {
-            JsonObject root = JsonParser.parseString(Files.readString(FILE)).getAsJsonObject();
+            JsonObject root = JsonParser.parseString(Files.readString(file)).getAsJsonObject();
             for (Module m : modules) {
                 if (!root.has(m.name)) continue;
                 JsonObject o = root.getAsJsonObject(m.name);
                 if (o.has("key")) m.key = o.get("key").getAsInt();
-                if (!o.has("settings")) continue;
-                JsonObject s = o.getAsJsonObject("settings");
-                for (Setting<?> st : m.settings) if (s.has(st.name)) st.load(s.get(st.name));
+                if (o.has("settings")) {
+                    JsonObject s = o.getAsJsonObject("settings");
+                    for (Setting<?> st : m.settings) if (s.has(st.name)) st.load(s.get(st.name));
+                }
+                if (withState && o.has("enabled")) m.setEnabled(o.get("enabled").getAsBoolean());
             }
         } catch (Exception ignored) {}
     }
