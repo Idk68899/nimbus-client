@@ -42,6 +42,7 @@ public final class ModuleManager {
         modules.add(new Teams());
         modules.add(new AutoTotem());
         modules.add(new AutoPot());
+        modules.add(new AutoRefill());
         modules.add(new AutoGapple());
         modules.add(new AutoArmor());
         modules.add(new AutoEat());
@@ -62,6 +63,7 @@ public final class ModuleManager {
         modules.add(new ElytraFly());
         modules.add(new Step());
         modules.add(new Spider());
+        modules.add(new SafeWalk());
         modules.add(new Scaffold());
         modules.add(new AutoWalk());
         // Render
