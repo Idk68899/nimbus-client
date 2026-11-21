@@ -24,9 +24,13 @@ public final class Inv {
     /** Inventory index (0-35) to the player inventory menu slot id. */
     public static int menuSlot(int invIndex) { return invIndex < 9 ? invIndex + 36 : invIndex; }
 
-    public static void swapToOffhand(int menuSlot) {
-        // CHECK: 26.2 renamed ClickType -> ContainerInput, handleInventoryMouseClick -> handleContainerInput
-        mc.gameMode.handleContainerInput(mc.player.inventoryMenu.containerId, menuSlot, 40, ContainerInput.SWAP, mc.player);
+    public static void swapToOffhand(int menuSlot) { swap(menuSlot, 40); }
+
+    /** Swaps a menu slot with a hotbar slot (0-8). Menu slot 6 is the chest armor slot. */
+    public static void swapHotbar(int menuSlot, int hotbar) { swap(menuSlot, hotbar); }
+
+    private static void swap(int menuSlot, int button) {
+        mc.gameMode.handleContainerInput(mc.player.inventoryMenu.containerId, menuSlot, button, ContainerInput.SWAP, mc.player);
     }
 
     /** Shift-click a menu slot (equips armor into an empty armor slot). */
