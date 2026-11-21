@@ -12,9 +12,8 @@ public class ModeSetting extends Setting<String> {
         this.modes = List.of(modes);
     }
 
-    public void cycle() {
-        value = modes.get((modes.indexOf(value) + 1) % modes.size());
-    }
+    public void cycle() { value = modes.get((modes.indexOf(value) + 1) % modes.size()); }
+    public void prev() { value = modes.get((modes.indexOf(value) - 1 + modes.size()) % modes.size()); }
 
     @Override public JsonElement save() { return new JsonPrimitive(value); }
     @Override public void load(JsonElement e) {
