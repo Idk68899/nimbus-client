@@ -1,38 +1,31 @@
+
 package dev.nimbus.module.impl;
 
 import dev.nimbus.module.Module;
-import dev.nimbus.setting.NumberSetting;
+import dev.nimbus.setting.*;
 import dev.nimbus.util.*;
 import net.minecraft.core.BlockPos;
-import net.minecraft.core.Direction;
-import net.minecraft.world.InteractionHand;
-import net.minecraft.world.item.Items;
 import org.lwjgl.glfw.GLFW;
+import java.util.List;
 
 public class Surround extends Module {
-    private static final Direction[] SIDES = { Direction.NORTH, Direction.SOUTH, Direction.EAST, Direction.WEST };
-    private final NumberSetting delay = add(new NumberSetting("Delay ticks", 1, 0, 6, 1));
+    private final BoolSetting headSides = add("Shape", new BoolSetting("Head sides", false));
+    private final BoolSetting top = add("Shape", new BoolSetting("Top cover", false));
+    private final BoolSetting obsidianOnly = add("Blocks", new BoolSetting("Obsidian only", true));
+    private final NumberSetting delay = add("Blocks", new NumberSetting("Delay ticks", 1, 0, 6, 1));
     private int wait;
 
-    public Surround() { super("Surround", "Combat", GLFW.GLFW_KEY_O); }
+    public Surround() { super("Surround", "Combat", GLFW.GLFW_KEY_O, "Places blocks around your feet to block crystal damage."); }
 
     @Override
     public void onTick() {
         var p = mc.player;
         if (p == null || mc.level == null || mc.gameMode == null) return;
         if (wait > 0) { wait--; return; }
-        int slot = Inv.findHotbar(s -> s.is(Items.OBSIDIAN));
+        if (Sync.lockedByOther(this)) return;
+        int slot = Build.blockSlot(obsidianOnly.get());
         if (slot < 0) return;
-
-        BlockPos feet = p.blockPosition();
-        for (Direction d : SIDES) {
-            BlockPos pos = feet.relative(d);
-            if (!mc.level.getBlockState(pos).canBeReplaced()) continue;
-            int prev = Inv.selected();
-            Inv.select(slot);
-            boolean ok = Place.block(pos, InteractionHand.MAIN_HAND);
-            Inv.select(prev);
-            if (ok) { wait = delay.get().intValue(); return; }
-        }
+        List<BlockPos> order = Build.cover(p.blockPosition(), true, headSides.get(), top.get());
+        if (Build.placeNext(order, slot)) wait = delay.get().intValue();
     }
 }
