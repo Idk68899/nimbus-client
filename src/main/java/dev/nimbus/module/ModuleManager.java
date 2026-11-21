@@ -19,13 +19,23 @@ public final class ModuleManager {
 
     public void init() {
         modules.add(new KillAura());
-        modules.add(new Velocity());
-        modules.add(new Sprint());
-        modules.add(new Flight());
-        modules.add(new Speed());
-        modules.add(new Fullbright());
-        modules.add(new Esp());
-        load();
+modules.add(new Reach());
+modules.add(new AimAssist());
+modules.add(new TriggerBot());
+modules.add(new AutoClicker());
+modules.add(new CrystalAura());
+modules.add(new AnchorAura());
+modules.add(new Velocity());
+modules.add(new AutoTotem());
+modules.add(new AutoPot());
+modules.add(new AutoGapple());
+modules.add(new Sprint());
+modules.add(new Speed());
+modules.add(new Flight());
+modules.add(new Scaffold());
+modules.add(new Fullbright());
+modules.add(new Esp());
+load();
     }
 
     public List<Module> all() { return modules; }
