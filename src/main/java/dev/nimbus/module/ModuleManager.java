@@ -28,6 +28,7 @@ public final class ModuleManager {
         modules.add(new AutoClicker());
         modules.add(new AutoWeapon());
         modules.add(new BowSpam());
+        modules.add(new AutoMace());
         modules.add(new MaceSmash());
         modules.add(new WindBoost());
         modules.add(new SpearCharge());
@@ -38,6 +39,7 @@ public final class ModuleManager {
         modules.add(new AutoWeb());
         modules.add(new Velocity());
         // Player
+        modules.add(new Teams());
         modules.add(new AutoTotem());
         modules.add(new AutoPot());
         modules.add(new AutoGapple());
