@@ -2,6 +2,11 @@
   "required": true,
   "package": "dev.nimbus.mixin",
   "compatibilityLevel": "JAVA_21",
-  "client": ["ClientPacketListenerMixin"],
+  "client": [
+    "ClientPacketListenerMixin",
+    "PlayerMixin",
+    "EntityMixin",
+    "MinecraftAccessor"
+  ],
   "injectors": { "defaultRequire": 1 }
 }
