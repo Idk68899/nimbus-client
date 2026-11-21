@@ -10,6 +10,7 @@ import net.minecraft.world.InteractionHand;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.boss.enderdragon.EndCrystal;
+import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.phys.AABB;
@@ -23,17 +24,20 @@ public class CrystalAura extends Module {
 
     private final NumberSetting placeRange = add("Place", new NumberSetting("Range", 4.5, 1, 6, 0.5));
     private final NumberSetting minDamage = add("Place", new NumberSetting("Min damage", 5, 0, 20, 0.5));
+    private final NumberSetting facePlaceHp = add("Place", new NumberSetting("Face place below HP", 8, 0, 20, 1));
     private final NumberSetting maxSelf = add("Place", new NumberSetting("Max self damage", 6, 0, 20, 0.5));
     private final BoolSetting antiSuicide = add("Place", new BoolSetting("Anti suicide", true));
     private final NumberSetting placeDelay = add("Place", new NumberSetting("Delay ticks", 1, 0, 10, 1));
     private final BoolSetting obsidian = add("Place", new BoolSetting("Place obsidian base", true));
     private final ModeSetting swap = add("Place", new ModeSetting("Switch", "Silent", "Normal", "Silent", "None"));
 
-    private final NumberSetting breakRange = add("Break", new NumberSetting("Range", 4.5, 1, 6, 0.5));
+    private final NumberSetting breakRange = add("Break", new NumberSetting("Range (capped to server reach)", 3.0, 1, 6, 0.5));
     private final NumberSetting breakDelay = add("Break", new NumberSetting("Delay ticks", 1, 0, 10, 1));
     private final NumberSetting breakMin = add("Break", new NumberSetting("Min damage", 2, 0, 20, 0.5));
     private final NumberSetting attempts = add("Break", new NumberSetting("Attempts", 1, 1, 3, 1));
     private final BoolSetting instantPlace = add("Break", new BoolSetting("Place same tick", true));
+
+    private final BoolSetting refill = add("Inventory", new BoolSetting("Refill from inventory", true));
 
     private final BoolSetting popFollow = add("Pop follow-up", new BoolSetting("Follow up pops", true));
     private final NumberSetting popMin = add("Pop follow-up", new NumberSetting("Pop min damage", 2, 0, 20, 0.5), () -> popFollow.get());
@@ -42,10 +46,16 @@ public class CrystalAura extends Module {
     private final NumberSetting aimSpeed = add("Rotation", new NumberSetting("Aim speed", 60, 10, 180, 5), () -> rotate.get());
 
     private final BoolSetting requireTotem = add("Safety", new BoolSetting("Require totem", true));
+    private final BoolSetting debug = add("Debug", new BoolSetting("Chat debug", false));
 
     private int breakWait, placeWait;
 
     public CrystalAura() { super("CrystalAura", "Combat", GLFW.GLFW_KEY_C, "Places obsidian bases and crystals, breaks them for damage."); }
+
+    private static boolean isCrystal(ItemStack s) { return s.is(Items.END_CRYSTAL); }
+
+    private double breakReach() { return Math.min(breakRange.get(), mc.player.entityInteractionRange()); } // CHECK
+    private double placeReach() { return Math.min(placeRange.get(), mc.player.blockInteractionRange()); }   // CHECK
 
     private boolean safe(double self) {
         return self <= maxSelf.get() && (!antiSuicide.get() || self < Dmg.hp(mc.player) - 0.5);
@@ -59,7 +69,7 @@ public class CrystalAura extends Module {
 
     private double score(Vec3 c, LivingEntity t, double minDmg) {
         var p = mc.player;
-        if (p.getEyePosition().distanceTo(c) > placeRange.get() || c.distanceTo(t.position()) > 9) return Double.NEGATIVE_INFINITY;
+        if (p.getEyePosition().distanceTo(c) > placeReach() || c.distanceTo(t.position()) > 9) return Double.NEGATIVE_INFINITY;
         double dmg = Dmg.explosion(c, t, 6);
         if (dmg < minDmg) return Double.NEGATIVE_INFINITY;
         double self = Dmg.explosion(c, p, 6);
@@ -67,9 +77,11 @@ public class CrystalAura extends Module {
         return dmg - self * 0.5;
     }
 
-    private boolean airAbove(BlockPos base) {
-        return mc.level.isEmptyBlock(base.above()) && mc.level.isEmptyBlock(base.above(2))
-                && mc.level.getEntities((Entity) null, new AABB(base.above())).isEmpty();
+    /** A crystal needs one free block above the base and a free 1x2x1 column for the entity. */
+    private boolean spotFree(BlockPos base) {
+        if (!mc.level.isEmptyBlock(base.above())) return false;
+        AABB box = new AABB(base.getX(), base.getY() + 1, base.getZ(), base.getX() + 1, base.getY() + 3, base.getZ() + 1);
+        return mc.level.getEntities((Entity) null, box).isEmpty();
     }
 
     private boolean hasSupport(BlockPos pos) {
@@ -87,25 +99,29 @@ public class CrystalAura extends Module {
         if (breakWait > 0) breakWait--;
         if (placeWait > 0) placeWait--;
         if (Sync.lockedByOther(this)) return;
-        if (requireTotem.get() && !Sync.hasTotem()) return;
+        if (requireTotem.get() && !Sync.hasTotem()) { Debug.say(name, debug.get(), "no totem (Require totem is on)"); return; }
 
         LivingEntity t = shareTarget.get() && Sync.target() != null && p.distanceTo(Sync.target()) <= targetRange.get()
                 ? Sync.target() : Target.find(targetRange.get(), true, "Distance", 360);
-        if (t == null) return;
+        if (t == null) { Debug.say(name, debug.get(), "no target within " + targetRange.get().intValue() + " blocks (is Teams skipping them?)"); return; }
         Sync.setTarget(t);
 
         boolean pop = popFollow.get() && Sync.recentPop(t, 20);
-        double minPlace = pop ? Math.min(popMin.get(), minDamage.get()) : minDamage.get();
+        boolean face = Dmg.hp(t) <= facePlaceHp.get();
+        double minPlace = minDamage.get();
+        if (pop) minPlace = Math.min(minPlace, popMin.get());
+        if (face) minPlace = Math.min(minPlace, 1.0);
 
         // ---- break
         if (breakWait <= 0) {
             EndCrystal best = null;
-            double bestD = -1;
+            double bestD = -1, reach = breakReach();
+            Vec3 eye = p.getEyePosition();
             for (Entity e : mc.level.entitiesForRendering()) { // CHECK
-                if (!(e instanceof EndCrystal c) || p.distanceTo(c) > breakRange.get()) continue;
+                if (!(e instanceof EndCrystal c) || c.getBoundingBox().distanceToSqr(eye) > reach * reach) continue;
                 double dt = Dmg.explosion(c.position(), t, 6);
                 double ds = Dmg.explosion(c.position(), p, 6);
-                if (dt >= (pop ? 0 : breakMin.get()) && safe(ds) && dt > bestD) { bestD = dt; best = c; }
+                if (dt >= (pop || face ? 0 : breakMin.get()) && safe(ds) && dt > bestD) { bestD = dt; best = c; }
             }
             if (best != null) {
                 if (!aimOk(best.position())) return;
@@ -121,12 +137,16 @@ public class CrystalAura extends Module {
         if (placeWait > 0) return;
         boolean offhand = p.getOffhandItem().is(Items.END_CRYSTAL)
                 && !ModuleManager.INSTANCE.get(AutoTotem.class).isEnabled();
-        int slot = Inv.findHotbar(s -> s.is(Items.END_CRYSTAL));
-        if (!offhand && slot < 0) return;
+        int slot = Inv.findHotbar(CrystalAura::isCrystal);
+        if (!offhand && slot < 0) {
+            if (refill.get() && Inv.refill(CrystalAura::isCrystal)) { placeWait = 2; return; }
+            Debug.say(name, debug.get(), "no end crystals in hotbar or offhand");
+            return;
+        }
 
         BlockPos best = null;
         double bestScore = Double.NEGATIVE_INFINITY;
-        int r = (int) Math.ceil(placeRange.get());
+        int r = (int) Math.ceil(placeReach());
         BlockPos o = p.blockPosition();
         for (int dx = -r; dx <= r; dx++)
             for (int dy = -r; dy <= r; dy++)
@@ -134,7 +154,7 @@ public class CrystalAura extends Module {
                     BlockPos base = o.offset(dx, dy, dz);
                     var st = mc.level.getBlockState(base);
                     if (!st.is(Blocks.OBSIDIAN) && !st.is(Blocks.BEDROCK)) continue;
-                    if (!airAbove(base)) continue;
+                    if (!spotFree(base)) continue;
                     double s = score(new Vec3(base.getX() + 0.5, base.getY() + 1.0, base.getZ() + 0.5), t, minPlace);
                     if (s > bestScore) { bestScore = s; best = base; }
                 }
@@ -154,9 +174,16 @@ public class CrystalAura extends Module {
         }
 
         // ---- no base: put down obsidian near the target
-        if (!obsidian.get()) return;
+        if (!obsidian.get()) {
+            Debug.say(name, debug.get(), "no obsidian/bedrock spot with enough damage (min " + minPlace + ")");
+            return;
+        }
         int obi = Inv.findHotbar(s -> s.is(Items.OBSIDIAN));
-        if (obi < 0) return;
+        if (obi < 0) {
+            if (refill.get() && Inv.refill(s -> s.is(Items.OBSIDIAN))) { placeWait = 2; return; }
+            Debug.say(name, debug.get(), "no obsidian in hotbar for a new base");
+            return;
+        }
         BlockPos bp = null;
         double bpScore = Double.NEGATIVE_INFINITY;
         for (int dx = -r; dx <= r; dx++)
@@ -164,11 +191,14 @@ public class CrystalAura extends Module {
                 for (int dz = -r; dz <= r; dz++) {
                     BlockPos pos = o.offset(dx, dy, dz);
                     if (pos.distSqr(t.blockPosition()) > 25) continue;
-                    if (!mc.level.getBlockState(pos).canBeReplaced() || !hasSupport(pos) || !airAbove(pos)) continue;
+                    if (!mc.level.getBlockState(pos).canBeReplaced() || !hasSupport(pos) || !spotFree(pos)) continue;
                     double s = score(new Vec3(pos.getX() + 0.5, pos.getY() + 1.0, pos.getZ() + 0.5), t, minPlace);
                     if (s > bpScore) { bpScore = s; bp = pos; }
                 }
-        if (bp == null) return;
+        if (bp == null) {
+            Debug.say(name, debug.get(), "no valid base spot near target (min damage " + minPlace + ", max self " + maxSelf.get() + ")");
+            return;
+        }
         int prev = Inv.selected();
         Inv.select(obi);
         boolean ok = Place.block(bp, InteractionHand.MAIN_HAND);
