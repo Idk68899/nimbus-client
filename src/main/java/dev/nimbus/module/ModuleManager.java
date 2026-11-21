@@ -28,6 +28,9 @@ public final class ModuleManager {
         modules.add(new AutoClicker());
         modules.add(new AutoWeapon());
         modules.add(new BowSpam());
+        modules.add(new MaceSmash());
+        modules.add(new WindBoost());
+        modules.add(new SpearCharge());
         modules.add(new CrystalAura());
         modules.add(new AnchorAura());
         modules.add(new Surround());
@@ -40,6 +43,10 @@ public final class ModuleManager {
         modules.add(new AutoGapple());
         modules.add(new AutoArmor());
         modules.add(new AutoEat());
+        modules.add(new AutoXP());
+        modules.add(new AutoPearl());
+        modules.add(new AutoFirework());
+        modules.add(new ElytraSwap());
         modules.add(new AutoTool());
         modules.add(new AutoRespawn());
         modules.add(new FastPlace());
@@ -50,6 +57,7 @@ public final class ModuleManager {
         modules.add(new Speed());
         modules.add(new Bhop());
         modules.add(new Flight());
+        modules.add(new ElytraFly());
         modules.add(new Step());
         modules.add(new Spider());
         modules.add(new Scaffold());
@@ -84,7 +92,7 @@ public final class ModuleManager {
         Sync.tick++;
         long h = GLFW.glfwGetCurrentContext();
         boolean noScreen = mc.gui.screen() == null; // CHECK: gui.screen()
-        for (Module m : modules) {
+        for (Module m : new ArrayList<>(modules)) {
             if (m.key >= 0 && noScreen) {
                 boolean now = GLFW.glfwGetKey(h, m.key) == GLFW.GLFW_PRESS;
                 if (now && down.add(m.key)) m.toggle();
