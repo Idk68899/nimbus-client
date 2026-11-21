@@ -48,7 +48,9 @@ public class KillAura extends Module {
     private final ModeSetting aim = add("Rotation", new ModeSetting("Aim point", "Chest", "Eyes", "Chest", "Feet"));
     private final NumberSetting aimSpeed = add("Rotation", new NumberSetting("Max speed", 40, 5, 180, 5), () -> rotation.get().equals("Smooth"));
     private final NumberSetting smoothing = add("Rotation", new NumberSetting("Smoothing", 0.35, 0.05, 1.0, 0.05), () -> rotation.get().equals("Smooth"));
+    private final NumberSetting follow = add("Rotation", new NumberSetting("Responsiveness", 0.55, 0.2, 1.0, 0.05), () -> rotation.get().equals("Smooth"));
     private final NumberSetting noise = add("Rotation", new NumberSetting("Noise", 0.1, 0.0, 1.0, 0.05), () -> rotation.get().equals("Smooth"));
+    private final NumberSetting predict = add("Rotation", new NumberSetting("Prediction ticks", 1.0, 0.0, 5.0, 0.5), () -> !rotation.get().equals("None"));
     private final ModeSetting gate = add("Rotation", new ModeSetting("Attack gate", "Raycast", "Raycast", "Angle", "None"));
     private final NumberSetting gateExpand = add("Rotation", new NumberSetting("Hitbox expand", 0.1, 0.0, 0.5, 0.05), () -> gate.get().equals("Raycast"));
     private final NumberSetting maxAngle = add("Rotation", new NumberSetting("Max angle", 25, 5, 180, 5), () -> gate.get().equals("Angle"));
@@ -61,11 +63,14 @@ public class KillAura extends Module {
     private static boolean isWeapon(ItemStack s) { return s.is(ItemTags.SWORDS) || s.is(ItemTags.AXES); } // CHECK tags
 
     private Vec3 aim(LivingEntity e) {
-        return switch (aim.get()) {
+        Vec3 base = switch (aim.get()) {
             case "Eyes" -> e.getEyePosition();
             case "Feet" -> e.position().add(0, 0.2, 0);
             default -> e.position().add(0, e.getBbHeight() * 0.6, 0);
         };
+        double lead = predict.get();
+        if (lead <= 0) return base;
+        return base.add(e.position().subtract(e.xOld, e.yOld, e.zOld).scale(lead));
     }
 
     private boolean valid(Player p, LivingEntity le) {
@@ -123,8 +128,9 @@ public class KillAura extends Module {
 
         Vec3 at = aim(t);
         switch (rotation.get()) {
-            case "Smooth" -> Rot.smooth(at, aimSpeed.get().floatValue(), smoothing.get().floatValue(), noise.get().floatValue());
-            case "Instant" -> Rot.smooth(at, 360f, 1f, 0f);
+            case "Smooth" -> Rot.smooth(at, aimSpeed.get().floatValue(), smoothing.get().floatValue(),
+                    noise.get().floatValue(), follow.get().floatValue());
+            case "Instant" -> Rot.smooth(at, 360f, 1f, 0f, 1f);
             default -> {}
         }
 
