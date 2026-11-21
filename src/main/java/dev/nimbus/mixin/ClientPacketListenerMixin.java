@@ -17,6 +17,6 @@ public class ClientPacketListenerMixin {
     private void nimbus$velocity(ClientboundSetEntityMotionPacket packet, CallbackInfo ci) {
         var p = Minecraft.getInstance().player;
         Velocity v = ModuleManager.INSTANCE.get(Velocity.class);
-        if (p != null && v != null && v.isEnabled() && packet.id() == p.getId()) ci.cancel();
+        if (p != null && v != null && v.isEnabled() && packet.id() == p.getId() && v.shouldCancel()) ci.cancel();
     }
 }
