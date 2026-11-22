@@ -69,6 +69,7 @@ public final class ModuleManager {
         // Render
         modules.add(new Fullbright());
         modules.add(new Esp());
+        modules.add(new TargetOutline());
         modules.add(new Zoom());
         modules.add(new HudModule());
         modules.add(new Radar());
