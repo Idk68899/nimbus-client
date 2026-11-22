@@ -37,6 +37,10 @@ public class CrystalAura extends Module {
     private final NumberSetting attempts = add("Break", new NumberSetting("Attempts", 1, 1, 3, 1));
     private final BoolSetting instantPlace = add("Break", new BoolSetting("Place same tick", true));
 
+    private final BoolSetting dtap = add("Double tap", new BoolSetting("Double tap", true));
+    private final NumberSetting dtapWindow = add("Double tap", new NumberSetting("Window ticks after pop", 40, 5, 100, 5), () -> dtap.get());
+    private final BoolSetting reuseBase = add("Double tap", new BoolSetting("Reuse last base", true), () -> dtap.get());
+
     private final BoolSetting refill = add("Inventory", new BoolSetting("Refill from inventory", true));
 
     private final BoolSetting popFollow = add("Pop follow-up", new BoolSetting("Follow up pops", true));
@@ -49,8 +53,9 @@ public class CrystalAura extends Module {
     private final BoolSetting debug = add("Debug", new BoolSetting("Chat debug", false));
 
     private int breakWait, placeWait;
+    private BlockPos lastBase;
 
-    public CrystalAura() { super("CrystalAura", "Combat", GLFW.GLFW_KEY_C, "Places obsidian bases and crystals, breaks them for damage."); }
+    public CrystalAura() { super("CrystalAura", "Combat", GLFW.GLFW_KEY_C, "Places obsidian bases and crystals, breaks them for damage. Double taps after a pop."); }
 
     private static boolean isCrystal(ItemStack s) { return s.is(Items.END_CRYSTAL); }
 
@@ -108,8 +113,11 @@ public class CrystalAura extends Module {
 
         boolean pop = popFollow.get() && Sync.recentPop(t, 20);
         boolean face = Dmg.hp(t) <= facePlaceHp.get();
+        boolean hot = dtap.get() && (face || Sync.recentPop(t, dtapWindow.get().intValue()));
+        boolean loose = pop || face || hot;
+
         double minPlace = minDamage.get();
-        if (pop) minPlace = Math.min(minPlace, popMin.get());
+        if (pop || hot) minPlace = Math.min(minPlace, popMin.get());
         if (face) minPlace = Math.min(minPlace, 1.0);
 
         // ---- break
@@ -121,15 +129,16 @@ public class CrystalAura extends Module {
                 if (!(e instanceof EndCrystal c) || c.getBoundingBox().distanceToSqr(eye) > reach * reach) continue;
                 double dt = Dmg.explosion(c.position(), t, 6);
                 double ds = Dmg.explosion(c.position(), p, 6);
-                if (dt >= (pop || face ? 0 : breakMin.get()) && safe(ds) && dt > bestD) { bestD = dt; best = c; }
+                if (dt >= (loose ? 0 : breakMin.get()) && safe(ds) && dt > bestD) { bestD = dt; best = c; }
             }
             if (best != null) {
                 if (!aimOk(best.position())) return;
-                for (int i = 0; i < attempts.get(); i++) mc.gameMode.attack(p, best);
+                int n = hot ? Math.max(attempts.get().intValue(), 2) : attempts.get().intValue();
+                for (int i = 0; i < n; i++) mc.gameMode.attack(p, best);
                 p.swing(InteractionHand.MAIN_HAND);
                 Sync.markCrystal();
-                breakWait = pop ? 0 : breakDelay.get().intValue();
-                if (!instantPlace.get()) return;
+                breakWait = (pop || hot) ? 0 : breakDelay.get().intValue();
+                if (!instantPlace.get() && !hot) return;
             }
         }
 
@@ -156,6 +165,8 @@ public class CrystalAura extends Module {
                     if (!st.is(Blocks.OBSIDIAN) && !st.is(Blocks.BEDROCK)) continue;
                     if (!spotFree(base)) continue;
                     double s = score(new Vec3(base.getX() + 0.5, base.getY() + 1.0, base.getZ() + 0.5), t, minPlace);
+                    if (s == Double.NEGATIVE_INFINITY) continue;
+                    if (hot && reuseBase.get() && base.equals(lastBase)) s += 50;
                     if (s > bestScore) { bestScore = s; best = base; }
                 }
 
@@ -169,7 +180,8 @@ public class CrystalAura extends Module {
             p.swing(hand);
             if (!offhand && swap.get().equals("Silent")) Inv.select(prev);
             Sync.markCrystal();
-            placeWait = pop ? 0 : placeDelay.get().intValue();
+            lastBase = best;
+            placeWait = (pop || hot) ? 0 : placeDelay.get().intValue();
             return;
         }
 
@@ -207,5 +219,5 @@ public class CrystalAura extends Module {
     }
 
     @Override
-    public void onDisable() { breakWait = 0; placeWait = 0; }
+    public void onDisable() { breakWait = 0; placeWait = 0; lastBase = null; }
 }
