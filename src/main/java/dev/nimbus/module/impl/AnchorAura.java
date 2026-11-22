@@ -25,6 +25,7 @@ public class AnchorAura extends Module {
     private final NumberSetting facePlaceHp = add("Anchor", new NumberSetting("Go for kill below HP", 8, 0, 20, 1));
     private final NumberSetting maxSelf = add("Anchor", new NumberSetting("Max self damage", 6, 0, 20, 0.5));
     private final BoolSetting antiSuicide = add("Anchor", new BoolSetting("Anti suicide", true));
+    private final BoolSetting killOverride = add("Anchor", new BoolSetting("Kill override (ignore self cap if it kills)", true));
     private final NumberSetting delay = add("Anchor", new NumberSetting("Delay ticks", 1, 0, 10, 1));
 
     private final BoolSetting refill = add("Inventory", new BoolSetting("Refill from inventory", true));
@@ -44,6 +45,10 @@ public class AnchorAura extends Module {
 
     private boolean safe(double self) {
         return self <= maxSelf.get() && (!antiSuicide.get() || self < Dmg.hp(mc.player) - 0.5);
+    }
+
+    private static boolean hasTotem(LivingEntity e) {
+        return e.getOffhandItem().is(Items.TOTEM_OF_UNDYING) || e.getMainHandItem().is(Items.TOTEM_OF_UNDYING);
     }
 
     private boolean hasSupport(BlockPos pos) {
@@ -114,8 +119,10 @@ public class AnchorAura extends Module {
 
         Vec3 c = Vec3.atCenterOf(anchor);
         double dt = Dmg.explosion(c, t, 5), ds = Dmg.explosion(c, p, 5);
-        if (dt < minD || !safe(ds)) {
-            Debug.say(name, debug.get(), String.format("won't detonate: target dmg %.1f (min %.1f), self dmg %.1f (max %.1f)", dt, minD, ds, maxSelf.get()));
+        boolean kills = !hasTotem(t) && dt >= Dmg.hp(t);
+        boolean ok = (dt >= minD && safe(ds)) || (killOverride.get() && kills && ds < Dmg.hp(p) - 0.5);
+        if (!ok) {
+            Debug.say(name, debug.get(), String.format("holding: target dmg %.1f (min %.1f), self dmg %.1f (max %.1f), kills=%b", dt, minD, ds, maxSelf.get(), kills));
             return;
         }
         if (requireCover.get()) {
